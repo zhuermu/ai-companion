@@ -1,8 +1,27 @@
+# Web framework and server
 fastapi==0.104.1
 uvicorn==0.23.2
 jinja2==3.1.2
-python-dotenv==1.0.0
 python-multipart==0.0.6
+
+# AWS integration
+boto3==1.28.62
 aws-sdk-bedrock-runtime==0.0.1
-pyaudio==0.2.13
+smithy-aws-core==0.0.1
+
+# Environment and configuration
+python-dotenv==1.0.0
+
+# Audio processing
+pyaudio==0.2.14
+
+# Date and time handling
 pytz==2023.3
+datetime
+
+
+# WebSocket support
+websockets==11.0.3
+
+# For async operations
+asyncio

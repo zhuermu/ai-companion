@@ -2,9 +2,12 @@ import json
 import hashlib
 import random
 import datetime
-import pytz
+import httpx
+import pytz,os
 from typing import Dict, Any, Optional
-
+from dotenv import load_dotenv
+load_dotenv()
+WEATHER_API_KEY = os.getenv('WEATHER_API_KEY', '')
 class ToolManager:
     """Manages tool definitions and executions for the emotional companion assistant."""
     
@@ -257,6 +260,14 @@ class ToolManager:
         
         if not location:
             return {"error": "Location is required"}
+        print(f"Location: {location}")
+        if WEATHER_API_KEY:
+            # Use the WeatherAPI to get real weather data
+            print("Using WeatherAPI for real weather data")
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"http://api.weatherapi.com/v1/current.json?key={WEATHER_API_KEY}&q={location}&aqi=no")
+                if response.status_code == 200:
+                    return response.text
         
         # Create deterministic weather based on location
         seed = int(hashlib.md5(location.encode(), usedforsecurity=False).hexdigest(), 16) % 10000

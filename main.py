@@ -1223,4 +1223,4 @@ if __name__ == "__main__":
     print(f"Starting server...")
     print(f"Templates directory: {templates_path}")
     print(f"Static files directory: {static_path}")
-    uvicorn.run(app, host="0.0.0.0", port=8100, log_level="debug")
+    uvicorn.run(app, host="0.0.0.0", port=3000, log_level="info")
