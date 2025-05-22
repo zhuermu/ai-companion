@@ -140,8 +140,15 @@
     box-shadow: 0 4px 18px 0 rgba(127,207,240,0.07);
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
     height: 100%;
+    overflow-anchor: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+/* 隐藏滚动条 - Webkit浏览器 */
+#transcript::-webkit-scrollbar {
+    display: none;
 }
 .voice-controls {
     flex-direction: column;
