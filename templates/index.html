@@ -186,7 +186,10 @@
             transition: var(--transition);
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 0.5rem;
+            text-align: center;
+            min-width: 160px;
         }
 
         .btn-primary {
@@ -539,13 +542,9 @@
                 </button>
             </div>
             <div class="controls">
-                <button id="startButton" class="btn btn-primary">
+                <button id="toggleTalkButton" class="btn btn-primary">
                     <i class="fa fas fa-microphone"></i>
                     Start Talking
-                </button>
-                <button id="stopButton" class="btn btn-secondary" disabled>
-                    <i class="fa fas fa-stop"></i>
-                    Stop Talking
                 </button>
             </div>
             <div id="status" class="not-recording">Status: Not recording</div>
@@ -771,13 +770,15 @@
             
             ws.onopen = () => {
                 console.log('WebSocket connected');
-                document.getElementById('startButton').disabled = false;
+                document.getElementById('toggleTalkButton').disabled = false;
             };
             
             ws.onclose = () => {
                 console.log('WebSocket disconnected');
-                document.getElementById('startButton').disabled = true;
-                stopRecording();
+                document.getElementById('toggleTalkButton').disabled = true;
+                if (isRecording) {
+                    toggleRecording().catch(console.error);
+                }
             };
             
             ws.onmessage = handleWebSocketMessage;
@@ -942,111 +943,113 @@
             draw();
         }
 
-        // Start recording
-        async function startRecording() {
-            if (!isInitialized) {
-                await initializeAudio();
-            }
-            isRecording = true;
-            document.getElementById('startButton').disabled = true;
-            document.getElementById('stopButton').disabled = false;
-            document.getElementById('status').textContent = 'Status: Recording';
-            document.getElementById('status').className = 'recording';
-            const micVisualizer = document.getElementById('micVisualizer');
-            if (micVisualizer) {
-                micVisualizer.classList.add('recording');
-            }
-            console.log('Started recording');
-        }
+        // Toggle recording
+        async function toggleRecording() {
+            const toggleButton = document.getElementById('toggleTalkButton');
+            
+            if (!isRecording) {
+                // Start recording
+                if (!isInitialized) {
+                    await initializeAudio();
+                }
+                isRecording = true;
+                toggleButton.innerHTML = '<i class="fa fas fa-stop"></i> Stop Talking';
+                toggleButton.classList.remove('btn-primary');
+                toggleButton.classList.add('btn-secondary');
+                document.getElementById('status').textContent = 'Status: Recording';
+                document.getElementById('status').className = 'recording';
+                const micVisualizer = document.getElementById('micVisualizer');
+                if (micVisualizer) {
+                    micVisualizer.classList.add('recording');
+                }
+                console.log('Started recording');
+            } else {
+                // Stop recording
+                isRecording = false;
+                toggleButton.innerHTML = '<i class="fa fas fa-microphone"></i> Start Talking';
+                toggleButton.classList.remove('btn-secondary');
+                toggleButton.classList.add('btn-primary');
+                document.getElementById('status').textContent = 'Status: Not recording';
+                document.getElementById('status').className = 'not-recording';
+                const micVisualizer = document.getElementById('micVisualizer');
+                if (micVisualizer) {
+                    micVisualizer.classList.remove('recording');
+                }
+                
+                try {
+                    // Send end event and handle cleanup
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        console.log('Sending end event...');
+                        ws.send(JSON.stringify({ type: 'end' }));
+                        
+                        // Wait for socket to close
+                        await new Promise((resolve) => {
+                            const checkClosure = setInterval(() => {
+                                if (ws.readyState === WebSocket.CLOSED) {
+                                    clearInterval(checkClosure);
+                                    resolve();
+                                }
+                            }, 100);
 
-        // Stop recording
-        async function stopRecording() {
-            if (!isRecording) return;
-            
-            isRecording = false;
-            document.getElementById('startButton').disabled = false;
-            document.getElementById('stopButton').disabled = true;
-            document.getElementById('status').textContent = 'Status: Not recording';
-            document.getElementById('status').className = 'not-recording';
-            const micVisualizer = document.getElementById('micVisualizer');
-            if (micVisualizer) {
-                micVisualizer.classList.remove('recording');
-            }
-            
-            try {
-                // Send end event and handle cleanup
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    console.log('Sending end event...');
-                    ws.send(JSON.stringify({ type: 'end' }));
-                    
-                    // Wait for socket to close
-                    await new Promise((resolve) => {
-                        const checkClosure = setInterval(() => {
-                            if (ws.readyState === WebSocket.CLOSED) {
+                            // Set a timeout to force resolve after 2 seconds
+                            setTimeout(() => {
                                 clearInterval(checkClosure);
                                 resolve();
-                            }
-                        }, 100);
+                            }, 2000);
 
-                        // Set a timeout to force resolve after 2 seconds
-                        setTimeout(() => {
-                            clearInterval(checkClosure);
-                            resolve();
-                        }, 2000);
+                            // Also resolve if the socket closes normally
+                            ws.onclose = () => {
+                                clearInterval(checkClosure);
+                                resolve();
+                            };
+                        });
 
-                        // Also resolve if the socket closes normally
-                        ws.onclose = () => {
-                            clearInterval(checkClosure);
-                            resolve();
-                        };
-                    });
+                        console.log('WebSocket closed, starting cleanup...');
+                    }
 
-                    console.log('WebSocket closed, starting cleanup...');
-                }
+                    // Clean up audio resources
+                    if (audioContext) {
+                        await audioContext.close();
+                    }
+                    if (audioOutputContext) {
+                        await audioOutputContext.close();
+                    }
+                    
+                    // Disconnect audio nodes
+                    if (microphone) {
+                        microphone.disconnect();
+                    }
+                    if (analyser) {
+                        analyser.disconnect();
+                    }
+                    if (scriptProcessor) {
+                        scriptProcessor.disconnect();
+                    }
 
-                // Clean up audio resources
-                if (audioContext) {
-                    await audioContext.close();
-                }
-                if (audioOutputContext) {
-                    await audioOutputContext.close();
-                }
-                
-                // Disconnect audio nodes
-                if (microphone) {
-                    microphone.disconnect();
-                }
-                if (analyser) {
-                    analyser.disconnect();
-                }
-                if (scriptProcessor) {
-                    scriptProcessor.disconnect();
-                }
+                    // Clear queues and reset states
+                    audioQueue = [];
+                    isProcessingAudio = false;
+                    isInitialized = false;
+                    ws = null;
 
-                // Clear queues and reset states
-                audioQueue = [];
-                isProcessingAudio = false;
-                isInitialized = false;
-                ws = null;
+                    console.log('Cleanup completed, refreshing page...');
+                    
+                    // Force refresh after a short delay
+                    setTimeout(() => {
+                        window.location.href = window.location.href;
+                    }, 500);
 
-                console.log('Cleanup completed, refreshing page...');
-                
-                // Force refresh after a short delay
-                setTimeout(() => {
+                } catch (error) {
+                    console.error('Error during cleanup:', error);
+                    // Refresh anyway after error
                     window.location.href = window.location.href;
-                }, 500);
-
-            } catch (error) {
-                console.error('Error during cleanup:', error);
-                // Refresh anyway after error
-                window.location.href = window.location.href;
+                }
             }
         }
 
-        // Set up event listeners
-        document.getElementById('startButton').addEventListener('click', startRecording);
-        document.getElementById('stopButton').addEventListener('click', () => {
-            stopRecording().catch(console.error);
+        // Set up event listener for toggle button
+        document.getElementById('toggleTalkButton').addEventListener('click', () => {
+            toggleRecording().catch(console.error);
         });
 
         // Initialize WebSocket connection when page loads
