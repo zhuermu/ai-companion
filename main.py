@@ -49,7 +49,7 @@ ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'password')
 
 # Session configuration
-SESSION_EXPIRY = 36000  # 1 hour in seconds
+SESSION_EXPIRY = 432000  #  12 hour in seconds
 SESSION_COOKIE_NAME = "session"
 SESSION_ENABLE = os.getenv('SESSION_ENABLE', 'true').lower() == 'true'
 
