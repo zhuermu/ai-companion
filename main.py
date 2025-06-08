@@ -122,7 +122,9 @@ def verify_session(session_token: Optional[str]) -> bool:
     return False
 
 @app.get("/")
-async def get_home(request: Request):
+async def get_home(request: Request, session: Optional[str] = Cookie(None)):
+    if not verify_session(session):
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/login")
@@ -945,7 +947,21 @@ class StreamManager:
         return json.dumps(tool_result_event)
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
-    # No session verification needed
+    # Get session cookie from headers
+    cookies = {}
+    cookie_header = websocket.headers.get("cookie", "")
+    if cookie_header:
+        cookie_items = cookie_header.split("; ")
+        for item in cookie_items:
+            if "=" in item:
+                key, value = item.split("=", 1)
+                cookies[key] = value
+    
+    # Verify session
+    session_token = cookies.get(SESSION_COOKIE_NAME)
+    if not verify_session(session_token):
+        await websocket.close(code=1008, reason="Unauthorized")
+        return
 
     await websocket.accept()
     print(f"Client #{client_id} connected")
